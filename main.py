@@ -1,5 +1,7 @@
 from itertools import *
 
+import typing as t
+
 import chess.pgn
 import chess
 import chess.uci
@@ -17,7 +19,7 @@ class SilentGameCreator(chess.pgn.GameCreator):
         if isinstance(err, ValueError) and str(err).startswith('unsupported variant'):
             pass
 
-def all_games():
+def all_games() -> t.Iterator[chess.pgn.Game]:
     pgn = open('data/lichess_evanrthomas_2019-01-13.pgn')
     while True:
         try:
@@ -28,12 +30,12 @@ def all_games():
         except ValueError as e:
             pass
 
-def evan_lost_game(game):
+def evan_lost_game(game: chess.pgn.Game) -> bool:
     return (game.headers['White'] == 'evanrthomas' and game.headers['Result'] == '0-1' or
             game.headers['Black'] == 'evanrthomas' and game.headers['Result'] == '1-0' )
 
 
-def get_boards(game):
+def get_boards(game: chess.pgn.Game) -> t.List[chess.Board]:
     boards = []
 
     # some python magic bc I fucking can
@@ -49,7 +51,7 @@ engine.uciok.wait()
 info_handler = chess.uci.InfoHandler()
 engine.info_handlers.append(info_handler)
 
-def evaluate_game(game, total_seconds=60):
+def evaluate_game(game: chess.pgn.Game, total_seconds: int=60):
     boards = get_boards(game)
     movetime = min(5*1000, total_seconds*1000 // len(boards)) # spend 1 minute thinking about this board
     for board in boards:
