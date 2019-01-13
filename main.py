@@ -1,5 +1,4 @@
 from itertools import *
-
 import typing as t
 
 import chess.pgn
@@ -7,6 +6,7 @@ import chess
 import chess.uci
 import chess.svg
 
+from game_phase import get_game_phases
 
 
 class SilentGameCreator(chess.pgn.GameCreator):
@@ -66,8 +66,5 @@ def evaluate_game(game: chess.pgn.Game, total_seconds: int=60):
 
 standard_games = (game for game in all_games() if game.headers['Variant'] == 'Standard')
 lost_games = (game for game in standard_games if evan_lost_game(game))
-game = next(lost_games)
-print(game)
-evaluation = evaluate_game(game)
-for (i, (board, score)) in enumerate(evaluation):
-    print(i, score)
+game1 = next(lost_games)
+print(get_game_phases(get_boards(game1)), game1.headers["Site"])
