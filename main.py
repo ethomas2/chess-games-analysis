@@ -1,3 +1,5 @@
+from itertools import *
+
 import chess.pgn
 import chess
 import chess.uci
@@ -27,32 +29,43 @@ def all_games():
             pass
 
 def evan_lost_game(game):
-    return (game.headers['White'] == 'evanrthomas' and game.headers['Result'] == '1-0' or
-            game.headers['Black'] == 'evanrthomas' and game.headers['Result'] == '0-1' )
+    return (game.headers['White'] == 'evanrthomas' and game.headers['Result'] == '0-1' or
+            game.headers['Black'] == 'evanrthomas' and game.headers['Result'] == '1-0' )
 
+
+def get_boards(game):
+    boards = []
+
+    # some python magic bc I fucking can
+    visit_board = lambda self, board: boards.append(board.copy())
+    visitor_cls = type("AnonymousVisitor", (chess.pgn.BaseVisitor,),
+                       {'visit_board': visit_board})
+    game.accept(visitor_cls())
+    return boards
 
 engine = chess.uci.popen_engine('stockfish')
 engine.uci()
 engine.uciok.wait()
+info_handler = chess.uci.InfoHandler()
+engine.info_handlers.append(info_handler)
 
-def get_boards(game):
-    boards = []
-    class Visitor(chess.pgn.BaseVisitor):
-        def __init__(self):
-            self.lastboard = None
-
-        def visit_board(self, board):
-            boards.append(board.copy())
-            return True
-
-    game.accept(Visitor())
-    return boards
+def evaluate_game(game, total_seconds=60):
+    boards = get_boards(game)
+    movetime = min(5*1000, total_seconds*1000 // len(boards)) # spend 1 minute thinking about this board
+    for board in boards:
+        engine.position(board)
+        engine.go(movetime=movetime)
+        with info_handler:
+            score = info_handler.info['score'][1]
+            cp, mate = score.cp, score.mate
+            yield board, (cp * (2*int(board.turn ) - 1))
 
 
 
 standard_games = (game for game in all_games() if game.headers['Variant'] == 'Standard')
 lost_games = (game for game in standard_games if evan_lost_game(game))
-boards = get_boards(next(lost_games))
-for board in boards:
-    print(board)
-    print()
+game = next(lost_games)
+print(game)
+evaluation = evaluate_game(game)
+for (i, (board, score)) in enumerate(evaluation):
+    print(i, score)
