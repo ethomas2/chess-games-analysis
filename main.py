@@ -1,11 +1,13 @@
 from itertools import *
-import typing as t
 import time
+import typing as t
+import json
+import sys
 
 import chess.pgn
 import chess
 import chess.uci
-from chess import BLACK
+from chess import BLACK, WHITE
 
 from game_phase import get_game_phases
 
@@ -52,18 +54,21 @@ engine.uciok.wait()
 info_handler = chess.uci.InfoHandler()
 engine.info_handlers.append(info_handler)
 
-def evaluate_game(game: chess.pgn.Game, total_seconds: int=60) -> t.Iterator[t.Tuple[chess.Board, int]]:
+def evaluate_game(game: chess.pgn.Game, total_seconds: int=60) -> t.Iterator[t.Tuple[chess.Board, float]]:
     boards = get_boards(game)
     movetime = min(5*1000, total_seconds*1000 // len(boards)) # spend 1 minute thinking about this board
+    sign = lambda x: 1 if x > 0 else (0 if x == 0 else -1)
     for board in boards:
         engine.position(board)
         engine.go(movetime=movetime)
         with info_handler:
             score = info_handler.info['score'][1]
             cp, mate = score.cp, score.mate
+            if mate is not None: print('mate', mate)
+            score = float(cp) / 1000 if cp is not None else sign(mate)*float('+inf')
 
             # Evaluation is given for whoever's turn it is. If it's black's turn, multiply by -1
-            yield board, (cp * (-1 if board.turn == BLACK else 1))
+            yield board, (score * (-1 if board.turn == BLACK else 1))
 
 def lost_by_endgame(game: chess.pgn.Game) -> bool:
     if not evan_lost_game(game):
@@ -72,16 +77,33 @@ def lost_by_endgame(game: chess.pgn.Game) -> bool:
     _, end_game_index = get_game_phases(get_boards(game))
     if end_game_index is None: return False
 
-    evaluation, board_before_endgame = boards_with_evaluations[end_game_index - 1]
+    board_before_endgame, evaluation = boards_with_evaluations[end_game_index - 1]
     losing_before_endgame  = (evaluation < -0.5 if board_before_endgame.turn == WHITE
                               else evaluation > 0.5)
     if not losing_before_endgame: return True
 
+with open('cache', 'r') as f: # opening in write mode just so we can create if it doesn't exist
+    cache = [json.loads(line) for line in f.read().splitlines() if line != '']
+
+already_evaluated =  set([elm['Site'] for elm in cache])
+print('Cache loaded \n{}'.format('\n'.join('\t' + site for site in already_evaluated)))
+
 standard_games = (game for game in all_games() if game.headers['Variant'] == 'Standard')
 lost_games = (game for game in standard_games if evan_lost_game(game))
-for game in lost_games:
-    print('Evaluating game ', game.headers['Site'], end='\t')
-    if lost_by_endgame(game): print('Lost by endgame')
-    else:                     print('Did not lose by endgame')
-# game1 = next(lost_games)
-# print(get_game_phases(get_boards(game1)), game1.headers["Site"])
+with open('cache', 'a') as f:
+    for game in lost_games:
+        if game.headers['Site'] in already_evaluated:
+            print('skipping', game.headers['Site'])
+            continue
+        print('Evaluating game ', game.headers['Site'], end='\t')
+        sys.stdout.flush()
+        did_lose_by_endgame = lost_by_endgame(game)
+        if did_lose_by_endgame: print('Lost by endgame')
+        else:                   print('Did not lose by endgame')
+        f.write(json.dumps({
+            'Site': game.headers['Site'],
+            'Result': 'Lost',
+            'Reason': 'Endgame' if did_lose_by_endgame else 'Other',
+        }))
+        f.write('\n')
+        f.flush()
