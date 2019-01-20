@@ -78,8 +78,8 @@ def lost_by_endgame(game: chess.pgn.Game) -> bool:
     if end_game_index is None: return False
 
     board_before_endgame, evaluation = boards_with_evaluations[end_game_index - 1]
-    losing_before_endgame  = (evaluation < -0.5 if board_before_endgame.turn == WHITE
-                              else evaluation > 0.5)
+    losing_before_endgame  = (evaluation < -0.3 if board_before_endgame.turn == WHITE
+                              else evaluation > 0.3)
     if not losing_before_endgame: return True
 
 with open('cache', 'r') as f: # opening in write mode just so we can create if it doesn't exist
