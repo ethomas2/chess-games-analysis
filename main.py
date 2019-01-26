@@ -23,7 +23,7 @@ class SilentGameCreator(chess.pgn.GameCreator):
             pass
 
 def all_games() -> t.Iterator[chess.pgn.Game]:
-    pgn = open('data/lichess_evanrthomas_2019-01-13.pgn')
+    pgn = open('games.pgn')
     while True:
         try:
             # game = chess.pgn.read_game(pgn, Visitor=SilentGameCreator)
